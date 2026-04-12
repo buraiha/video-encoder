@@ -9,29 +9,41 @@ OUT_DIR="${BASE_DIR}/out"
 
 mkdir -p "${IN_DIR}" "${OUT_DIR}"
 
-if [ $# -lt 1 ]; then
-  echo "usage: $0 <input.ts>"
+shopt -s nullglob
+
+INPUT_FILES=("${IN_DIR}"/*)
+
+if [ ${#INPUT_FILES[@]} -eq 0 ]; then
+  echo "No input files found in ${IN_DIR}"
   exit 1
 fi
 
-INPUT_BASENAME="$(basename "$1")"
-INPUT_PATH="/in/${INPUT_BASENAME}"
-STEM="${INPUT_BASENAME%.*}"
-OUTPUT_PATH="/out/${STEM}_720p.mp4"
+for input_file in "${INPUT_FILES[@]}"; do
+  if [ ! -f "${input_file}" ]; then
+    continue
+  fi
 
-podman run --rm \
-  -v "${IN_DIR}:/in:ro" \
-  -v "${OUT_DIR}:/out" \
-  "${IMAGE_NAME}" \
-  -y \
-  -i "${INPUT_PATH}" \
-  -map 0:v:0 \
-  -map 0:a:0? \
-  -c:v libx264 \
-  -preset medium \
-  -crf 23 \
-  -vf "scale=-2:720" \
-  -c:a aac \
-  -b:a 128k \
-  -movflags +faststart \
-  "${OUTPUT_PATH}"
+  input_basename="$(basename "${input_file}")"
+  input_path="/in/${input_basename}"
+  stem="${input_basename%.*}"
+  output_path="/out/${stem}_720p.mp4"
+
+  echo "Encoding ${input_basename} -> ${stem}_720p.mp4"
+
+  podman run --rm \
+    -v "${IN_DIR}:/in:ro" \
+    -v "${OUT_DIR}:/out" \
+    "${IMAGE_NAME}" \
+    -y \
+    -i "${input_path}" \
+    -map "0:v:0" \
+    -map "0:a?" \
+    -c:v libx264 \
+    -preset medium \
+    -crf 23 \
+    -vf "scale=-2:720" \
+    -c:a aac \
+    -b:a 128k \
+    -movflags +faststart \
+    "${output_path}"
+done
