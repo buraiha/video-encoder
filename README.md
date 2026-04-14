@@ -1,62 +1,76 @@
-# video-encoder (Podman + FFmpeg)
+# video-encoder
 
-TSファイルをPodman上のFFmpegでmp4に変換するための最小手順。
-
-## 前提
-
-* Podmanが使えること
-* このリポジトリ配下に `in/`, `out/` ディレクトリがあること
+TSファイルを 720p または 1080p の mp4 に変換するための、cron 前提のバッチ式エンコーダです。
 
 ## ディレクトリ構成
 
 ```text
 video-encoder/
-├── Dockerfile
-├── build.sh
-├── ffenc-720.sh
-├── ffenc-1080.sh
-├── in/
-└── out/
+├── bin/
+│   ├── encode-one.sh
+│   └── watch-and-encode.sh
+├── inbox-720p/
+├── inbox-1080p/
+├── working/
+├── out/
+│   ├── 720p/
+│   └── 1080p/
+├── done/
+│   ├── 720p/
+│   └── 1080p/
+├── failed/
+│   ├── 720p/
+│   └── 1080p/
+└── logs/
 ```
 
-## 1. ビルド
+## 前提コマンド
+
+- ffmpeg
+- nice
+- ionice
+- find
+
+watch-and-encode.sh は常駐監視ではなく、一回だけキューを処理して終了します。
+cron から定期実行する想定です。
+
+## 使い方
+
+### 720p に変換したい場合
+
+inbox-720p に .ts ファイルを置きます。
+
+### 1080p に変換したい場合
+
+inbox-1080p に .ts ファイルを置きます。
+
+### 一回だけ処理する
 
 ```bash
-cd ~/video-encoder
-./build.sh
+./bin/watch-and-encode.sh
 ```
 
-## 2. 入力配置
+この実行で以下を順番に行います。
 
-```bash
-cp /path/to/file.ts ~/video-encoder/in/
+1. 前回実行時点から inbox 内のファイル増減をログへ記録
+2. working に残っている途中ファイルを再処理
+3. inbox-720p と inbox-1080p の .ts を一件ずつ直列処理
+4. キューが空になったら終了
+
+## 出力先
+
+- 成功した mp4 は out/720p または out/1080p
+- 元の .ts は成功時に done/720p または done/1080p
+- 失敗した元ファイルは failed/720p または failed/1080p
+- ログは logs/
+
+## cron 例
+
+1 分ごとに処理する例です。
+
+```cron
+* * * * * cd /Users/takashi/my_development/video-encoder && ./bin/watch-and-encode.sh >> /Users/takashi/my_development/video-encoder/logs/cron.log 2>&1
 ```
 
-## 3. 実行
-
-`in/` に入っている通常ファイルを上から順番にまとめて処理する。
-
-### 720p
-
-```bash
-./ffenc-720.sh
-```
-
-### 1080p
-
-```bash
-./ffenc-1080.sh
-```
-
-## 4. 出力
-
-```text
-out/
-├── file_720p.mp4
-└── file_1080p.mp4
-```
-
-## 補足
-
-* 入力は `in/`、出力は `out/` を使用
-* 失敗時は `podman run` の標準出力/標準エラーを確認
+同時起動を避けるため、watch-and-encode.sh にはロック処理が入っています。
+前回実行がまだ動いている間に cron が再度起動しても、重複実行はせず終了します。

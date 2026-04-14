@@ -1,8 +1,31 @@
 .DS_Store
 **/.DS_Store
 
-/in/*
-!/in/.gitkeep
+/inbox-720p/*
+/inbox-1080p/*
+/working/*
+/logs/*
+/out/720p/*
+/out/1080p/*
+/done/720p/*
+/done/1080p/*
+/failed/720p/*
+/failed/1080p/*
 
-/out/*
-!/out/.gitkeep
+!/logs/.gitkeep
+!/out/720p/.gitkeep
+!/out/1080p/.gitkeep
+!/done/720p/.gitkeep
+!/done/1080p/.gitkeep
+!/failed/720p/.gitkeep
+!/failed/1080p/.gitkeep
+!/inbox-720p/README.md
+!/inbox-1080p/README.md
+!/working/README.md
+!/logs/README.md
+!/out/720p/README.md
+!/out/1080p/README.md
+!/done/720p/README.md
+!/done/1080p/README.md
+!/failed/720p/README.md
+!/failed/1080p/README.md
