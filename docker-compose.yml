@@ -1,0 +1,13 @@
+services:
+  video-encoder:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: video-encoder
+    environment:
+      TZ: Asia/Tokyo
+      CRON_SCHEDULE: "* * * * *"
+      RUN_ON_STARTUP: "0"
+    volumes:
+      - .:/app
+    restart: unless-stopped

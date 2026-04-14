@@ -9,6 +9,7 @@ INBOX_1080="${BASE_DIR}/inbox-1080p"
 WORKING_DIR="${BASE_DIR}/working"
 LOG_FILE="${BASE_DIR}/logs/watcher.log"
 STATE_DIR="${BASE_DIR}/logs/.watcher-state"
+LOCK_FILE="${STATE_DIR}/watcher.lock"
 LOCK_DIR="${STATE_DIR}/lock"
 LOCK_PID_FILE="${LOCK_DIR}/pid"
 SNAPSHOT_720="${STATE_DIR}/inbox-720p.lst"
@@ -22,6 +23,17 @@ log() {
 
 acquire_lock() {
   local active_pid=""
+
+  if command -v flock >/dev/null 2>&1; then
+    exec 9>"$LOCK_FILE"
+    if ! flock -n 9; then
+      log "another run is active"
+      exit 0
+    fi
+
+    printf '%s\n' "$$" > "${STATE_DIR}/watcher.pid"
+    return 0
+  fi
 
   if mkdir "$LOCK_DIR" 2>/dev/null; then
     printf '%s\n' "$$" > "$LOCK_PID_FILE"
@@ -50,6 +62,14 @@ acquire_lock() {
 }
 
 release_lock() {
+  rm -f "${STATE_DIR}/watcher.pid"
+
+  if command -v flock >/dev/null 2>&1; then
+    flock -u 9 2>/dev/null || true
+    exec 9>&- 2>/dev/null || true
+    return 0
+  fi
+
   rm -f "$LOCK_PID_FILE"
   rmdir "$LOCK_DIR" 2>/dev/null || true
 }
@@ -118,7 +138,7 @@ process_one() {
     return 0
   else
     log "ERROR profile=${profile} file=${f}"
-    return 0
+    return 1
   fi
 }
 
@@ -133,14 +153,20 @@ drain_queue() {
     f720="$(find "$INBOX_720" -maxdepth 1 -type f -name '*.ts' ! -name '.*' ! -name '._*' | sort | head -n 1)"
     if [ -n "$f720" ]; then
       found=1
-      process_one 720p "$f720"
+      if ! process_one 720p "$f720"; then
+        log "queue processing stopped after error profile=720p file=${f720}"
+        break
+      fi
       continue
     fi
 
     f1080="$(find "$INBOX_1080" -maxdepth 1 -type f -name '*.ts' ! -name '.*' ! -name '._*' | sort | head -n 1)"
     if [ -n "$f1080" ]; then
       found=1
-      process_one 1080p "$f1080"
+      if ! process_one 1080p "$f1080"; then
+        log "queue processing stopped after error profile=1080p file=${f1080}"
+        break
+      fi
       continue
     fi
   done
