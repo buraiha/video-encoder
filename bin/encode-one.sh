@@ -64,10 +64,38 @@ fi
 OUT_FILE="${OUT_DIR}/${STEM}.mp4"
 LOG_FILE="${LOG_DIR}/${STEM}.${PROFILE}.log"
 
+move_to_failed() {
+  local reason="$1"
+  local src_file="$2"
+  local base_name="$3"
+  local reason_tag=""
+  local failed_name=""
+
+  reason_tag="${reason//[^A-Za-z0-9_-]/_}"
+  [ -n "$reason_tag" ] || reason_tag="failed"
+
+  failed_name="${reason_tag}_${base_name}"
+
+  if [ -e "${FAILED_DIR}/${failed_name}" ]; then
+    failed_name="${reason_tag}_$(date '+%Y%m%d%H%M%S')_${base_name}"
+  fi
+
+  if [ -f "$src_file" ]; then
+    mv "$src_file" "${FAILED_DIR}/${failed_name}"
+    echo "[$(date '+%F %T')] moved to failed: ${FAILED_DIR}/${failed_name}" | tee -a "$LOG_FILE"
+  else
+    echo "[$(date '+%F %T')] failed source not found: $src_file" | tee -a "$LOG_FILE"
+  fi
+}
+
 if [ -e "$OUT_FILE" ]; then
   echo "output already exists: $OUT_FILE"
-  mv "$WORK_FILE" "${FAILED_DIR}/${ORIG_BASENAME}" 2>/dev/null || true
-  exit 1
+  if [ -f "$INPUT" ]; then
+    move_to_failed "duplicate" "$INPUT" "$ORIG_BASENAME"
+  elif [ -f "$WORK_FILE" ]; then
+    move_to_failed "duplicate" "$WORK_FILE" "$ORIG_BASENAME"
+  fi
+  exit 2
 fi
 
 if [ "$INPUT" != "$WORK_FILE" ]; then
@@ -88,7 +116,7 @@ then
   mv "$WORK_FILE" "${DONE_DIR}/${ORIG_BASENAME}"
   echo "[$(date '+%F %T')] success: $OUT_FILE" | tee -a "$LOG_FILE"
 else
-  mv "$WORK_FILE" "${FAILED_DIR}/${ORIG_BASENAME}"
+  move_to_failed "enc_error" "$WORK_FILE" "$ORIG_BASENAME"
   echo "[$(date '+%F %T')] failed: $WORK_FILE" | tee -a "$LOG_FILE"
   exit 1
 fi

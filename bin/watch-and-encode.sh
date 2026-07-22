@@ -126,6 +126,7 @@ is_valid_ts() {
 process_one() {
   local profile="$1"
   local f="$2"
+  local rc=0
 
   if ! is_valid_ts "$f"; then
     log "skip invalid file: $f"
@@ -137,6 +138,11 @@ process_one() {
     log "done profile=${profile} file=${f}"
     return 0
   else
+    rc=$?
+    if [ "$rc" -eq 2 ]; then
+      log "skip duplicate profile=${profile} file=${f}"
+      return 0
+    fi
     log "ERROR profile=${profile} file=${f}"
     return 1
   fi
