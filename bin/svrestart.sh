@@ -4,6 +4,10 @@ set -u
 EPGSTATION_URL="http://127.0.0.1:8888"
 MIRAKURUN_CONTAINER="mirakurun"
 EPGSTATION_CONTAINER="epgstation"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+BASE_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+STATE_DIR="${SVRESTART_STATE_DIR:-${BASE_DIR}/logs/.svrestart-state}"
+LAST_SUCCESS_FILE="${STATE_DIR}/last-success-week"
 
 log() {
     printf '[%s] %s\n' "$(date '+%F %T')" "$*"
@@ -12,6 +16,37 @@ log() {
 log_error() {
     printf '[%s] %s\n' "$(date '+%F %T')" "$*" >&2
 }
+
+current_week_key() {
+    # Use ISO week so "once per week" is stable around year boundaries.
+    date '+%G-W%V'
+}
+
+already_restarted_this_week() {
+    local current_week=""
+    local recorded_week=""
+
+    current_week="$(current_week_key)"
+    if [ ! -f "$LAST_SUCCESS_FILE" ]; then
+        return 1
+    fi
+
+    recorded_week="$(cat "$LAST_SUCCESS_FILE" 2>/dev/null || true)"
+    [ "$recorded_week" = "$current_week" ]
+}
+
+mark_restart_success_this_week() {
+    local current_week=""
+
+    mkdir -p "$STATE_DIR"
+    current_week="$(current_week_key)"
+    printf '%s\n' "$current_week" > "$LAST_SUCCESS_FILE"
+}
+
+if already_restarted_this_week; then
+    log "今週はすでに再起動済みのためスキップします"
+    exit 0
+fi
 
 # EPGStationから現在録画中の一覧を取得
 if ! response="$(
@@ -58,4 +93,5 @@ if ! docker restart "$EPGSTATION_CONTAINER"; then
     exit 1
 fi
 
+mark_restart_success_this_week
 log "MirakurunとEPGStationの再起動が完了しました"
